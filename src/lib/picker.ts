@@ -16,12 +16,24 @@ export async function pickVideos(): Promise<PickedVideo[]> {
       readData: false, // We don't need the data, just the file reference
     });
 
-    return result.files.map((file) => ({
-      uri: file.path || file.name,
-      name: file.name || "Unknown Video",
-      size: file.size,
-      mimeType: file.mimeType,
-    }));
+    return result.files.map((file) => {
+      console.log("FilePicker file object:", {
+        path: file.path,
+        name: file.name,
+        size: file.size,
+        mimeType: file.mimeType,
+      });
+
+      const uri = file.path || file.name;
+      console.log("Selected URI:", uri);
+
+      return {
+        uri,
+        name: file.name || "Unknown Video",
+        size: file.size,
+        mimeType: file.mimeType,
+      };
+    });
   } catch (error) {
     console.error("Error picking videos:", error);
     throw new Error("Failed to pick videos. Please try again.");

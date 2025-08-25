@@ -1,39 +1,41 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
-import { TagChips } from '../../components/TagChips';
-import { db, Video } from '../../lib/db';
-import { formatDuration, formatFileSize } from '../../lib/time';
-import { navigateToLibrary, navigateToChooseThumbnail } from '../../app/routes';
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "../../components/Button";
+import { Icon } from "../../components/Icon";
+import { TagChips } from "../../components/TagChips";
+import { db, Video } from "../../lib/db";
+import { formatDuration, formatFileSize } from "../../lib/time";
+import { navigateToLibrary, navigateToChooseThumbnail } from "../../app/routes";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 
 interface VideoDetailScreenProps {
   videoId: string;
 }
 
-export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId }) => {
+export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({
+  videoId,
+}) => {
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
-  const [editedNotes, setEditedNotes] = useState('');
-  const [newTagLabel, setNewTagLabel] = useState('');
+  const [editedNotes, setEditedNotes] = useState("");
+  const [newTagLabel, setNewTagLabel] = useState("");
 
   // Fetch video details
   const { data: video, isLoading } = useQuery({
-    queryKey: ['video', videoId],
+    queryKey: ["video", videoId],
     queryFn: () => db.getVideoById(videoId),
   });
 
   // Fetch video tags
   const { data: videoTags = [] } = useQuery({
-    queryKey: ['video-tags', videoId],
+    queryKey: ["video-tags", videoId],
     queryFn: () => db.getTagsByVideoId(videoId),
   });
 
   // Fetch all tags
   const { data: allTags = [] } = useQuery({
-    queryKey: ['tags'],
+    queryKey: ["tags"],
     queryFn: () => db.getTags(),
   });
 
@@ -41,8 +43,8 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
   const updateVideoMutation = useMutation({
     mutationFn: (updates: Partial<Video>) => db.updateVideo(videoId, updates),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['video', videoId] });
-      queryClient.invalidateQueries({ queryKey: ['videos'] });
+      queryClient.invalidateQueries({ queryKey: ["video", videoId] });
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
     },
   });
 
@@ -50,21 +52,23 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
   const addTagMutation = useMutation({
     mutationFn: async (tagLabel: string) => {
       // Check if tag already exists
-      let tag = allTags.find(t => t.label.toLowerCase() === tagLabel.toLowerCase());
-      
+      let tag = allTags.find(
+        (t) => t.label.toLowerCase() === tagLabel.toLowerCase()
+      );
+
       if (!tag) {
         // Create new tag
         tag = await db.createTag({ label: tagLabel, type: null });
       }
-      
+
       // Associate with video
       await db.addVideoTag(videoId, tag.id);
       return tag;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['video-tags', videoId] });
-      queryClient.invalidateQueries({ queryKey: ['tags'] });
-      setNewTagLabel('');
+      queryClient.invalidateQueries({ queryKey: ["video-tags", videoId] });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
+      setNewTagLabel("");
       Haptics.impact({ style: ImpactStyle.Light });
     },
   });
@@ -73,7 +77,7 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
   const removeTagMutation = useMutation({
     mutationFn: (tagId: string) => db.removeVideoTag(videoId, tagId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['video-tags', videoId] });
+      queryClient.invalidateQueries({ queryKey: ["video-tags", videoId] });
       Haptics.impact({ style: ImpactStyle.Light });
     },
   });
@@ -94,7 +98,7 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
   };
 
   const startEditingNotes = () => {
-    setEditedNotes(video?.notes || '');
+    setEditedNotes(video?.notes || "");
     setIsEditing(true);
   };
 
@@ -110,6 +114,8 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
   }
 
   const videoSrc = Capacitor.convertFileSrc(video.uri);
+  console.log("Video URI:", video.uri);
+  console.log("Converted video src:", videoSrc);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,10 +134,10 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
                 Back
               </Button>
               <h1 className="text-xl font-semibold text-gray-900">
-                {video.displayName || 'Untitled Video'}
+                {video.displayName || "Untitled Video"}
               </h1>
             </div>
-            
+
             <Button
               variant="outline"
               onClick={() => navigateToChooseThumbnail(videoId)}
@@ -153,23 +159,33 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
                 controls
                 className="w-full h-full"
                 preload="metadata"
+                onError={(e) => {
+                  console.error("Video loading error:", e);
+                  console.error("Video src:", videoSrc);
+                  console.error("Original URI:", video.uri);
+                }}
+                onLoadStart={() => console.log("Video load started")}
+                onLoadedMetadata={() => console.log("Video metadata loaded")}
+                onCanPlay={() => console.log("Video can play")}
               >
                 Your browser does not support the video tag.
               </video>
             </div>
-            
+
             {/* Video Info */}
             <div className="bg-white rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <span className="flex items-center">
                   <Icon name="clock" size="sm" className="mr-1" />
-                  {video.durationMs ? formatDuration(video.durationMs) : 'Unknown'}
+                  {video.durationMs
+                    ? formatDuration(video.durationMs)
+                    : "Unknown"}
                 </span>
                 {video.sizeBytes && (
                   <span>{formatFileSize(video.sizeBytes)}</span>
                 )}
               </div>
-              
+
               {video.createdAt && (
                 <p className="text-sm text-gray-500">
                   Added {new Date(video.createdAt).toLocaleDateString()}
@@ -183,13 +199,13 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
             {/* Tags Section */}
             <div className="bg-white rounded-lg p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Tags</h3>
-              
+
               <TagChips
                 tags={videoTags}
                 editable
                 onTagRemove={handleRemoveTag}
               />
-              
+
               {/* Add new tag */}
               <div className="mt-4 flex gap-2">
                 <input
@@ -198,7 +214,7 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
                   value={newTagLabel}
                   onChange={(e) => setNewTagLabel(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === "Enter") {
                       e.preventDefault();
                       handleAddTag();
                     }
@@ -230,7 +246,7 @@ export const VideoDetailScreen: React.FC<VideoDetailScreenProps> = ({ videoId })
                   </Button>
                 )}
               </div>
-              
+
               {isEditing ? (
                 <div className="space-y-3">
                   <textarea

@@ -1,20 +1,22 @@
-import React, { useRef, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
-import { ThumbnailToolbar } from '../../components/ThumbnailToolbar';
-import { Filmstrip } from '../../components/Filmstrip';
-import { db } from '../../lib/db';
-import { updateThumbnail } from '../../lib/thumbnails';
-import { navigateToVideoDetail } from '../../app/routes';
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import React, { useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "../../components/Button";
+import { Icon } from "../../components/Icon";
+import { ThumbnailToolbar } from "../../components/ThumbnailToolbar";
+import { Filmstrip } from "../../components/Filmstrip";
+import { db } from "../../lib/db";
+import { updateThumbnail } from "../../lib/thumbnails";
+import { navigateToVideoDetail } from "../../app/routes";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 
 interface ChooseThumbnailScreenProps {
   videoId: string;
 }
 
-export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ videoId }) => {
+export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({
+  videoId,
+}) => {
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [busy, setBusy] = useState(false);
@@ -22,51 +24,51 @@ export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ vi
 
   // Fetch video details
   const { data: video, isLoading } = useQuery({
-    queryKey: ['video', videoId],
+    queryKey: ["video", videoId],
     queryFn: () => db.getVideoById(videoId),
   });
 
   // Update thumbnail mutation
   const updateThumbnailMutation = useMutation({
     mutationFn: async (seconds: number) => {
-      if (!video) throw new Error('Video not found');
-      
+      if (!video) throw new Error("Video not found");
+
       const thumbPath = await updateThumbnail(videoId, video.uri, seconds);
       await db.updateVideo(videoId, { thumbPath });
-      
+
       return thumbPath;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['video', videoId] });
-      queryClient.invalidateQueries({ queryKey: ['videos'] });
-      
+      queryClient.invalidateQueries({ queryKey: ["video", videoId] });
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
+
       // Show success feedback
       Haptics.impact({ style: ImpactStyle.Medium });
-      
+
       // Navigate back after a short delay
       setTimeout(() => {
         navigateToVideoDetail(videoId);
       }, 1000);
     },
     onError: (error) => {
-      console.error('Failed to update thumbnail:', error);
-      alert('Failed to update thumbnail. Please try again.');
+      console.error("Failed to update thumbnail:", error);
+      alert("Failed to update thumbnail. Please try again.");
     },
   });
 
   const nudge = (delta: number) => {
     const el = videoRef.current;
     if (!el) return;
-    
+
     el.currentTime = Math.max(0, Math.min(el.duration, el.currentTime + delta));
   };
 
   const useFrame = async () => {
     const el = videoRef.current;
     if (!el || !video) return;
-    
+
     setBusy(true);
-    
+
     try {
       await updateThumbnailMutation.mutateAsync(el.currentTime);
     } finally {
@@ -77,10 +79,10 @@ export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ vi
   const handleFilmstripSelect = async (seconds: number) => {
     const el = videoRef.current;
     if (!el) return;
-    
+
     // Seek to the selected time
     el.currentTime = seconds;
-    
+
     // Auto-capture the frame
     await useFrame();
   };
@@ -97,6 +99,8 @@ export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ vi
   }
 
   const videoSrc = Capacitor.convertFileSrc(video.uri);
+  console.log("Choose thumbnail - Video URI:", video.uri);
+  console.log("Choose thumbnail - Converted video src:", videoSrc);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -118,13 +122,13 @@ export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ vi
                 Choose Thumbnail
               </h1>
             </div>
-            
+
             <Button
               variant="outline"
               onClick={() => setShowFilmstrip(!showFilmstrip)}
             >
               <Icon name="image" size="sm" className="mr-2" />
-              {showFilmstrip ? 'Hide' : 'Show'} Quick Select
+              {showFilmstrip ? "Hide" : "Show"} Quick Select
             </Button>
           </div>
         </div>
@@ -141,11 +145,23 @@ export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ vi
                 controls
                 className="w-full h-full"
                 preload="metadata"
+                onError={(e) => {
+                  console.error("Choose thumbnail video loading error:", e);
+                  console.error("Video src:", videoSrc);
+                  console.error("Original URI:", video.uri);
+                }}
+                onLoadStart={() =>
+                  console.log("Choose thumbnail video load started")
+                }
+                onLoadedMetadata={() =>
+                  console.log("Choose thumbnail video metadata loaded")
+                }
+                onCanPlay={() => console.log("Choose thumbnail video can play")}
               >
                 Your browser does not support the video tag.
               </video>
             </div>
-            
+
             {/* Thumbnail Controls */}
             <ThumbnailToolbar
               onNudge={nudge}
@@ -153,13 +169,18 @@ export const ChooseThumbnailScreen: React.FC<ChooseThumbnailScreenProps> = ({ vi
               busy={busy || updateThumbnailMutation.isPending}
               disabled={!videoRef.current}
             />
-            
+
             {updateThumbnailMutation.isSuccess && (
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center">
-                  <Icon name="image" size="sm" className="text-green-600 mr-2" />
+                  <Icon
+                    name="image"
+                    size="sm"
+                    className="text-green-600 mr-2"
+                  />
                   <span className="text-green-800 text-sm">
-                    Thumbnail updated successfully! Returning to video details...
+                    Thumbnail updated successfully! Returning to video
+                    details...
                   </span>
                 </div>
               </div>

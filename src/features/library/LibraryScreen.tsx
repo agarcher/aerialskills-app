@@ -7,6 +7,7 @@ import { db, Video } from "../../lib/db";
 import { pickVideos } from "../../lib/picker";
 import { getVideoMetadata, createVideoHash } from "../../lib/videoMeta";
 import { ensureDefaultThumbnail } from "../../lib/thumbnails";
+import { copyVideoToAppStorage } from "../../lib/filePaths";
 import { useFilterStore } from "../../lib/store";
 import { navigateToVideoDetail } from "../../app/routes";
 import { Haptics, ImpactStyle } from "@capacitor/haptics";
@@ -48,12 +49,15 @@ export const LibraryScreen: React.FC = () => {
 
       for (const file of videoFiles) {
         try {
-          // Get video metadata
-          const metadata = await getVideoMetadata(file.uri);
+          console.log("Processing video file:", file);
 
-          // Create video record
+          // Get video metadata from the temporary file
+          const metadata = await getVideoMetadata(file.uri);
+          console.log("Video metadata:", metadata);
+
+          // Create video record with temporary URI first (we'll update it after copying)
           const video: Omit<Video, "id"> = {
-            uri: file.uri,
+            uri: file.uri, // Temporary - will be updated after copying
             displayName: file.name,
             durationMs: metadata.duration,
             sizeBytes: file.size || null,
@@ -63,8 +67,30 @@ export const LibraryScreen: React.FC = () => {
             notes: null,
           };
 
-          // Save to database
+          // Save to database to get the video ID
           const savedVideo = await db.createVideo(video);
+          console.log("Video saved to database with ID:", savedVideo.id);
+
+          // Copy video file to permanent app storage
+          try {
+            const permanentUri = await copyVideoToAppStorage(
+              savedVideo.id,
+              file.uri,
+              file.name
+            );
+
+            // Update the video record with the permanent URI
+            await db.updateVideo(savedVideo.id, { uri: permanentUri });
+            savedVideo.uri = permanentUri;
+            console.log("Video copied to permanent storage:", permanentUri);
+          } catch (copyError) {
+            console.error(
+              "Failed to copy video to permanent storage:",
+              copyError
+            );
+            // If copying fails, we'll keep the original URI and hope it works
+            // In a production app, you might want to delete the database record here
+          }
 
           // Generate default thumbnail
           try {
