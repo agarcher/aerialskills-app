@@ -45,8 +45,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow access to the camera to capture photos and videos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Allow access to choose and read videos.</string>
+	<string>Allow access to choose and read videos from your photo library.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Allow saving thumbnails locally.</string>
 </dict>

@@ -1,4 +1,4 @@
-import { FilePicker } from '@capawesome/capacitor-file-picker';
+import { FilePicker } from "@capawesome/capacitor-file-picker";
 
 export interface PickedVideo {
   uri: string;
@@ -12,20 +12,19 @@ export interface PickedVideo {
  */
 export async function pickVideos(): Promise<PickedVideo[]> {
   try {
-    const result = await FilePicker.pickFiles({
-      types: ['video/*'],
+    const result = await FilePicker.pickVideos({
       readData: false, // We don't need the data, just the file reference
     });
 
-    return result.files.map(file => ({
+    return result.files.map((file) => ({
       uri: file.path || file.name,
-      name: file.name || 'Unknown Video',
+      name: file.name || "Unknown Video",
       size: file.size,
       mimeType: file.mimeType,
     }));
   } catch (error) {
-    console.error('Error picking videos:', error);
-    throw new Error('Failed to pick videos. Please try again.');
+    console.error("Error picking videos:", error);
+    throw new Error("Failed to pick videos. Please try again.");
   }
 }
 
@@ -34,9 +33,9 @@ export async function pickVideos(): Promise<PickedVideo[]> {
  */
 export async function pickSingleVideo(): Promise<PickedVideo | null> {
   try {
-    const result = await FilePicker.pickFiles({
-      types: ['video/*'],
+    const result = await FilePicker.pickVideos({
       readData: false,
+      limit: 1, // Limit to single video selection
     });
 
     const file = result.files[0];
@@ -44,13 +43,19 @@ export async function pickSingleVideo(): Promise<PickedVideo | null> {
 
     return {
       uri: file.path || file.name,
-      name: file.name || 'Unknown Video',
+      name: file.name || "Unknown Video",
       size: file.size,
       mimeType: file.mimeType,
     };
-  } catch (error) {
-    console.error('Error picking video:', error);
-    throw new Error('Failed to pick video. Please try again.');
+  } catch (error: any) {
+    console.error("Error picking video:", error);
+    if (
+      error?.message?.includes("User cancelled") ||
+      error?.message?.includes("cancelled")
+    ) {
+      return null; // User cancelled, not an error
+    }
+    throw new Error("Failed to pick video. Please try again.");
   }
 }
 
@@ -59,8 +64,8 @@ export async function pickSingleVideo(): Promise<PickedVideo | null> {
  */
 export async function isFilePickerAvailable(): Promise<boolean> {
   try {
-    // Try to access the FilePicker to see if it's available
-    return typeof FilePicker.pickFiles === 'function';
+    // Check if FilePicker is available
+    return typeof FilePicker.pickVideos === "function";
   } catch {
     return false;
   }

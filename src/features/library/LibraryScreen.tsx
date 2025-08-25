@@ -1,41 +1,58 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { VideoCard } from '../../components/VideoCard';
-import { Button } from '../../components/Button';
-import { Icon } from '../../components/Icon';
-import { db, Video } from '../../lib/db';
-import { pickVideos } from '../../lib/picker';
-import { getVideoMetadata, createVideoHash } from '../../lib/videoMeta';
-import { ensureDefaultThumbnail } from '../../lib/thumbnails';
-import { useFilterStore, useFilteredVideos } from '../../lib/store';
-import { navigateToVideoDetail } from '../../app/routes';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { VideoCard } from "../../components/VideoCard";
+import { Button } from "../../components/Button";
+import { Icon } from "../../components/Icon";
+import { db, Video } from "../../lib/db";
+import { pickVideos } from "../../lib/picker";
+import { getVideoMetadata, createVideoHash } from "../../lib/videoMeta";
+import { ensureDefaultThumbnail } from "../../lib/thumbnails";
+import { useFilterStore } from "../../lib/store";
+import { navigateToVideoDetail } from "../../app/routes";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
 
 export const LibraryScreen: React.FC = () => {
   const queryClient = useQueryClient();
   const [importing, setImporting] = useState(false);
-  
+
   const { searchTerm, setSearchTerm } = useFilterStore();
-  const filteredVideos = useFilteredVideos();
 
   // Fetch videos
   const { data: videos = [], isLoading } = useQuery({
-    queryKey: ['videos'],
+    queryKey: ["videos"],
     queryFn: () => db.getVideos(),
   });
 
+  // Filter videos based on search term
+  const filteredVideos = useMemo(() => {
+    if (!searchTerm) {
+      return videos;
+    }
+
+    const searchLower = searchTerm.toLowerCase();
+    return videos.filter((video) => {
+      const matchesName = video.displayName
+        ?.toLowerCase()
+        .includes(searchLower);
+      const matchesNotes = video.notes?.toLowerCase().includes(searchLower);
+      return matchesName || matchesNotes;
+    });
+  }, [videos, searchTerm]);
+
   // Import videos mutation
   const importMutation = useMutation({
-    mutationFn: async (videoFiles: Array<{ uri: string; name: string; size?: number }>) => {
+    mutationFn: async (
+      videoFiles: Array<{ uri: string; name: string; size?: number }>
+    ) => {
       const results = [];
-      
+
       for (const file of videoFiles) {
         try {
           // Get video metadata
           const metadata = await getVideoMetadata(file.uri);
-          
+
           // Create video record
-          const video: Omit<Video, 'id'> = {
+          const video: Omit<Video, "id"> = {
             uri: file.uri,
             displayName: file.name,
             durationMs: metadata.duration,
@@ -45,10 +62,10 @@ export const LibraryScreen: React.FC = () => {
             thumbPath: null,
             notes: null,
           };
-          
+
           // Save to database
           const savedVideo = await db.createVideo(video);
-          
+
           // Generate default thumbnail
           try {
             const thumbPath = await ensureDefaultThumbnail(
@@ -56,40 +73,40 @@ export const LibraryScreen: React.FC = () => {
               savedVideo.uri,
               savedVideo.durationMs || 0
             );
-            
+
             if (thumbPath) {
               await db.updateVideo(savedVideo.id, { thumbPath });
               savedVideo.thumbPath = thumbPath;
             }
           } catch (thumbError) {
-            console.error('Failed to generate thumbnail:', thumbError);
+            console.error("Failed to generate thumbnail:", thumbError);
           }
-          
+
           results.push(savedVideo);
         } catch (error) {
           console.error(`Failed to import video ${file.name}:`, error);
         }
       }
-      
+
       return results;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['videos'] });
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
       Haptics.impact({ style: ImpactStyle.Light });
     },
   });
 
   const handleImportVideos = async () => {
     setImporting(true);
-    
+
     try {
       const selectedFiles = await pickVideos();
       if (selectedFiles.length > 0) {
         await importMutation.mutateAsync(selectedFiles);
       }
     } catch (error) {
-      console.error('Error importing videos:', error);
-      alert('Failed to import videos. Please try again.');
+      console.error("Error importing videos:", error);
+      alert("Failed to import videos. Please try again.");
     } finally {
       setImporting(false);
     }
@@ -121,7 +138,7 @@ export const LibraryScreen: React.FC = () => {
               <h1 className="text-2xl font-bold text-gray-900">
                 Aerial Silks Video Library
               </h1>
-              
+
               <Button
                 variant="primary"
                 onClick={handleImportVideos}
@@ -132,7 +149,7 @@ export const LibraryScreen: React.FC = () => {
                 Add Videos
               </Button>
             </div>
-            
+
             {/* Search bar */}
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -154,7 +171,11 @@ export const LibraryScreen: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {videos.length === 0 ? (
           <div className="text-center py-12">
-            <Icon name="video" size="lg" className="text-gray-300 mx-auto mb-4" />
+            <Icon
+              name="video"
+              size="lg"
+              className="text-gray-300 mx-auto mb-4"
+            />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
               No videos yet
             </h3>
@@ -178,9 +199,7 @@ export const LibraryScreen: React.FC = () => {
               <p className="text-sm text-gray-600">
                 {filteredVideos.length} of {videos.length} videos
                 {searchTerm && (
-                  <span className="ml-1">
-                    matching "{searchTerm}"
-                  </span>
+                  <span className="ml-1">matching "{searchTerm}"</span>
                 )}
               </p>
             </div>
@@ -198,17 +217,18 @@ export const LibraryScreen: React.FC = () => {
 
             {filteredVideos.length === 0 && searchTerm && (
               <div className="text-center py-12">
-                <Icon name="search" size="lg" className="text-gray-300 mx-auto mb-4" />
+                <Icon
+                  name="search"
+                  size="lg"
+                  className="text-gray-300 mx-auto mb-4"
+                />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   No videos found
                 </h3>
                 <p className="text-gray-500 mb-4">
                   Try adjusting your search terms
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setSearchTerm('')}
-                >
+                <Button variant="outline" onClick={() => setSearchTerm("")}>
                   Clear search
                 </Button>
               </div>
